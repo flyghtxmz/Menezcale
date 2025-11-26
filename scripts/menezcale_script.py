@@ -126,12 +126,19 @@ class MenezcaleScript(scripts.Script):
                 label="Método de Downscale",
             )
 
+            use_manual_down = gr.Checkbox(
+                label="Usar fator manual de downscale (opcional)",
+                value=False,
+                info="Desligado: usa o tamanho original detectado (p.width/p.height ou Hires). Ligado: aplica fator manual.",
+            )
+
             down_factor = gr.Slider(
                 minimum=0.1,
                 maximum=1.0,
                 step=0.05,
                 value=0.25,
-                label="Fator de Downscale",
+                label="Fator de Downscale (manual)",
+                visible=False,
             )
 
             use_auto_original = gr.Checkbox(
@@ -190,12 +197,19 @@ class MenezcaleScript(scripts.Script):
                 outputs=[manual_width, manual_height],
             )
 
+            use_manual_down.change(
+                fn=lambda enabled: gr.update(visible=enabled),
+                inputs=use_manual_down,
+                outputs=down_factor,
+            )
+
             manual_button.click(
                 fn=self._manual_test,
                 inputs=[
                     manual_input,
                     down_method,
                     down_factor,
+                    use_manual_down,
                     use_auto_original,
                     manual_width,
                     manual_height,
@@ -206,7 +220,7 @@ class MenezcaleScript(scripts.Script):
             load_last.click(
                 fn=self._load_last_image,
                 inputs=[],
-                outputs=manual_input,
+                outputs=[manual_input, manual_output],
             )
 
         return [
@@ -216,6 +230,7 @@ class MenezcaleScript(scripts.Script):
             upscale_factor,
             down_method,
             down_factor,
+            use_manual_down,
             use_auto_original,
             manual_width,
             manual_height,
@@ -226,6 +241,7 @@ class MenezcaleScript(scripts.Script):
         image: Optional[Image.Image],
         down_method: str,
         down_factor: float,
+        use_manual_down: bool,
         use_auto_original: bool,
         manual_width: int,
         manual_height: int,
@@ -242,6 +258,7 @@ class MenezcaleScript(scripts.Script):
             upscale_factor=1,
             down_method=down_method,
             down_factor=down_factor,
+            use_manual_down=use_manual_down,
             use_auto_original=use_auto_original,
             manual_width=manual_width,
             manual_height=manual_height,
@@ -259,6 +276,7 @@ class MenezcaleScript(scripts.Script):
         upscale_factor: float,
         down_method: str,
         down_factor: float,
+        use_manual_down: bool,
         use_auto_original: bool,
         manual_width: int,
         manual_height: int,
@@ -290,6 +308,7 @@ class MenezcaleScript(scripts.Script):
                 upscale_factor=upscale_factor,
                 down_method=down_method,
                 down_factor=down_factor,
+                use_manual_down=use_manual_down,
                 use_auto_original=use_auto_original,
                 manual_width=manual_width,
                 manual_height=manual_height,
@@ -300,18 +319,18 @@ class MenezcaleScript(scripts.Script):
         if new_images:
             self._last_image = self._safe_copy_image(new_images[-1])
 
-    def _load_last_image(self) -> Optional[Image.Image]:
+    def _load_last_image(self):
         img = getattr(self, "_last_image", None)
         if img is None:
             print("[Menezcale] Nenhuma imagem gerada anteriormente para carregar.")
-            return None
+            return None, None
         try:
             copy_img = img.copy()
             copy_img.info = getattr(img, "info", {}).copy()
-            return copy_img
+            return copy_img, copy_img
         except Exception as err:
             print(f"[Menezcale] Falha ao carregar última imagem: {err}")
-            return None
+            return None, None
 
     def _log_hires_info_if_any(self, p: StableDiffusionProcessing):
         """
@@ -327,15 +346,18 @@ class MenezcaleScript(scripts.Script):
             hr_resize_y = getattr(p, "hr_resize_y", 0)
 
             target_w, target_h = None, None
+            scale_used = None
             if hr_resize_x and hr_resize_y:
                 target_w, target_h = hr_resize_x, hr_resize_y
             elif hr_scale and base_w and base_h:
                 target_w, target_h = int(base_w * float(hr_scale)), int(base_h * float(hr_scale))
+                scale_used = hr_scale
 
             print(
                 f"[Menezcale] Hires Fix ativo. "
                 f"Resolução base (antes do hires): {base_w}x{base_h}. "
-                + (f"Tamanho final esperado pelo Hires: {target_w}x{target_h}." if target_w and target_h else "")
+                + (f"Tamanho final esperado pelo Hires: {target_w}x{target_h}. " if target_w and target_h else "")
+                + (f"Fator hires: {scale_used}x." if scale_used else "")
             )
         except Exception as err:
             print(f"[Menezcale] Não foi possível registrar info do Hires Fix: {err}")
@@ -350,6 +372,7 @@ class MenezcaleScript(scripts.Script):
         upscale_factor: float,
         down_method: str,
         down_factor: float,
+        use_manual_down: bool,
         use_auto_original: bool,
         manual_width: int,
         manual_height: int,
@@ -371,6 +394,7 @@ class MenezcaleScript(scripts.Script):
             image=image,
             original_size=original_size,
             down_factor=down_factor,
+            use_manual_down=use_manual_down,
         )
 
         image = self._apply_downscale(image, down_method, target_size, original_info)
@@ -434,15 +458,20 @@ class MenezcaleScript(scripts.Script):
         image: Image.Image,
         original_size: Optional[Tuple[int, int]],
         down_factor: float,
+        use_manual_down: bool,
     ) -> Tuple[int, int]:
         if original_size:
             return original_size
 
-        factor = max(0.01, float(down_factor or 1.0))
-        width = max(1, int(image.width * factor))
-        height = max(1, int(image.height * factor))
-        print(f"[Menezcale] Tamanho alvo por fator {factor}: {width}x{height}")
-        return width, height
+        if use_manual_down:
+            factor = max(0.01, float(down_factor or 1.0))
+            width = max(1, int(image.width * factor))
+            height = max(1, int(image.height * factor))
+            print(f"[Menezcale] Tamanho alvo por fator manual {factor}: {width}x{height}")
+            return width, height
+
+        print("[Menezcale] Sem tamanho original detectado e fator manual desativado; mantendo tamanho atual.")
+        return image.width, image.height
 
     def _apply_upscale(
         self,

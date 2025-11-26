@@ -16,9 +16,9 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
 - **Ativar Menezcale**: liga/desliga o fluxo pós-geração (ativo por padrão).
 - **Incluir Upscale Automático Antes**: se marcado, aplica um upscale rápido antes do downscale usando o modelo e fator escolhidos.
 - **Método de Downscale**: `Lanczos` (mais fiel), `FSRCNN` (se o modelo existir em `models/ESRGAN`) ou `Bicubic`.
-- **Fator de Downscale**: razão aplicada sobre a imagem atual (0.25 volta ao original após um upscale 4x).
-- **Usar Tamanho Original Automático**: detecta `p.width/p.height` ou metadados do PNG; ao desligar, habilita sliders para largura/altura manual.
-- **Teste Manual**: envie uma imagem (pós-upscale) e clique em **Testar Downscale Manual** para ver o preview imediato. Se já gerou algo em txt2img, o botão **Carregar última imagem gerada** preenche automaticamente com a última saída.
+- **Usar Tamanho Original Automático**: detecta `p.width/p.height` ou metadados do PNG (inclui Hires Fix). Ao desligar, habilita sliders para largura/altura manual.
+- **Downscale manual (opcional)**: marque “Usar fator manual de downscale” para usar o slider de fator; caso contrário, o script volta para o tamanho original detectado (ex.: base do Hires) automaticamente.
+- **Teste Manual**: envie uma imagem (pós-upscale) e clique em **Testar Downscale Manual** para ver o preview. O botão **Carregar última imagem gerada** preenche e mostra a última saída processada (downscale) no visualizador.
 - O hook roda no `postprocess` do txt2img, iterando sobre todas as imagens em `processed.images`.
 
 ## Como funciona
@@ -40,5 +40,6 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
 
 - `scripts/menezcale_script.py`: lógica da extensão e UI Gradio.
 - `install.py`: redundante (instala `sd-parsers` manualmente se desejar), já que o script tenta resolver automaticamente.
+- `requirements.txt`: lista `sd-parsers`.
 
 Logs de debug com prefixo `[Menezcale]` são emitidos no console do WebUI para facilitar verificação de tamanho/método aplicado.
