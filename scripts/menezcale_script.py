@@ -23,7 +23,6 @@ def _load_sd_parsers():
     """
     try:
         from sd_parsers import parse_generation_parameters  # type: ignore
-
         return parse_generation_parameters
     except Exception:
         pass
@@ -31,13 +30,28 @@ def _load_sd_parsers():
     try:
         print("[Menezcale] Instalando dependência leve sd-parsers...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "sd-parsers"])
-        from sd_parsers import parse_generation_parameters  # type: ignore
+        # Re-tentar import após instalação
+        try:
+            from sd_parsers import parse_generation_parameters  # type: ignore
 
-        print("[Menezcale] sd-parsers instalado com sucesso.")
-        return parse_generation_parameters
+            print("[Menezcale] sd-parsers instalado com sucesso.")
+            return parse_generation_parameters
+        except Exception:
+            # Algumas versões expõem 'parse' em vez de parse_generation_parameters.
+            try:
+                import sd_parsers  # type: ignore
+
+                if hasattr(sd_parsers, "parse"):
+                    print("[Menezcale] sd-parsers instalado; usando sd_parsers.parse.")
+                    return getattr(sd_parsers, "parse")
+            except Exception:
+                pass
     except Exception as err:
         print(f"[Menezcale] sd-parsers indisponível ({err}). Usando regex fallback.")
         return None
+
+    print("[Menezcale] sd-parsers não expôs parse_generation_parameters; usando regex fallback.")
+    return None
 
 
 # Optional dependency requested by spec for parsing metadata.
