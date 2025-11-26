@@ -1,6 +1,6 @@
 # Menezcale - Auto Downscale (Forge / SD-WebUI)
 
-Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) focada em recuperar nitidez depois de um upscale externo. O fluxo detecta o tamanho original (inclusive antes do Hires Fix) e faz downscale inteligente para voltar ao tamanho original preservando detalhes.
+Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) focada em recuperar nitidez depois de um upscale externo. O fluxo detecta o tamanho original (inclusive antes do Hires Fix) e faz downscale inteligente para voltar ao tamanho original preservando detalhes. O acionamento é manual (botão) e exige Hires Fix ativo para liberar o downscale.
 
 ## Instalação
 
@@ -18,7 +18,6 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
   - Checkbox **Tamanho original**: ligado volta para o tamanho base (p.width/p.height, Hires Fix ou metadados). Desligado habilita sliders de largura/altura manual.
   - Checkbox **Usar fator manual de downscale**: opcional; habilita o slider de fator manual em vez de usar o tamanho original.
   - **Método de Downscale**: `Lanczos` (mais fiel), `FSRCNN` (se o modelo existir em `models/ESRGAN`) ou `Bicubic`.
-- Automação opcional: marque **Aplicar downscale automaticamente ao gerar** se quiser que o downscale aconteça no postprocess; por padrão, fica desligado para uso manual.
 - Pré-visualização: o upload/preview são menores para facilitar a inspeção rápida dentro do painel.
 - Importante: se o Hires Fix não estiver ativo na geração, os controles de downscale ficam bloqueados (tanto no automático quanto no manual).
 

@@ -86,12 +86,6 @@ class MenezcaleScript(scripts.Script):
             "Menezcale - Auto Downscale (Foco em Nitidez Pós-Upscale)",
             open=False,
         ):
-            activate = gr.Checkbox(
-                label="Aplicar downscale automaticamente ao gerar",
-                value=False,
-                info="Se ligado, aplica o downscale ao final da geração. Caso contrário, use o botão manual.",
-            )
-
             down_method = gr.Dropdown(
                 choices=[
                     "Lanczos (Recomendado para Preservar Qualidade)",
@@ -193,7 +187,6 @@ class MenezcaleScript(scripts.Script):
             )
 
         return [
-            activate,
             down_method,
             down_factor,
             use_manual_down,
@@ -236,7 +229,6 @@ class MenezcaleScript(scripts.Script):
         self,
         p: StableDiffusionProcessing,
         processed: Processed,
-        activate: bool,
         down_method: str,
         down_factor: float,
         use_manual_down: bool,
@@ -263,36 +255,8 @@ class MenezcaleScript(scripts.Script):
         if not hires_enabled:
             print("[Menezcale] Hires Fix não está ativo; controles bloqueados até habilitar Hires.")
             return
-
-        if not activate:
-            print("[Menezcale] Downscale automático desativado. Use o botão 'Aplicar Downscale'.")
-            return
-
-        print(
-            f"[Menezcale] Postprocess iniciado (automático). "
-            f"Downscale: {down_method} "
-            f"fator {down_factor if use_manual_down else 'auto original'} "
-            f"| Auto size: {use_auto_original}"
-        )
-
-        new_images = []
-        for idx, image in enumerate(processed.images):
-            print(f"[Menezcale] --- Imagem {idx + 1}/{len(processed.images)} ---")
-            final_image = self._run_pipeline(
-                image=image,
-                p=p,
-                down_method=down_method,
-                down_factor=down_factor,
-                use_manual_down=use_manual_down,
-                use_auto_original=use_auto_original,
-                manual_width=manual_width,
-                manual_height=manual_height,
-            )
-            new_images.append(final_image)
-
-        processed.images = new_images
-        if new_images:
-            self._last_image = self._safe_copy_image(new_images[-1])
+        # Automático desativado: apenas registra a última imagem e sai.
+        print("[Menezcale] Downscale automático desativado. Use o botão 'Aplicar Downscale'.")
 
     def _load_last_image(self):
         img = getattr(self, "_last_image", None)
