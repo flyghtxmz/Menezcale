@@ -256,6 +256,8 @@ class MenezcaleScript(scripts.Script):
         manual_width: int,
         manual_height: int,
     ):
+        self._log_hires_info_if_any(p)
+
         if not activate:
             print("[Menezcale] Desativado - nada a fazer.")
             return
@@ -288,6 +290,33 @@ class MenezcaleScript(scripts.Script):
             new_images.append(final_image)
 
         processed.images = new_images
+
+    def _log_hires_info_if_any(self, p: StableDiffusionProcessing):
+        """
+        If Hires Fix is enabled in txt2img, log the base resolution before hires.
+        This helps the user know the original size prior to the upscale.
+        """
+        try:
+            if not getattr(p, "enable_hr", False):
+                return
+            base_w, base_h = getattr(p, "width", None), getattr(p, "height", None)
+            hr_scale = getattr(p, "hr_scale", None)
+            hr_resize_x = getattr(p, "hr_resize_x", 0)
+            hr_resize_y = getattr(p, "hr_resize_y", 0)
+
+            target_w, target_h = None, None
+            if hr_resize_x and hr_resize_y:
+                target_w, target_h = hr_resize_x, hr_resize_y
+            elif hr_scale and base_w and base_h:
+                target_w, target_h = int(base_w * float(hr_scale)), int(base_h * float(hr_scale))
+
+            print(
+                f"[Menezcale] Hires Fix ativo. "
+                f"Resolução base (antes do hires): {base_w}x{base_h}. "
+                + (f"Tamanho final esperado pelo Hires: {target_w}x{target_h}." if target_w and target_h else "")
+            )
+        except Exception as err:
+            print(f"[Menezcale] Não foi possível registrar info do Hires Fix: {err}")
 
     # Core processing helpers -------------------------------------------------
     def _run_pipeline(
