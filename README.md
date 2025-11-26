@@ -13,12 +13,12 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
 
 - Abra a aba **txt2img** e, no painel direito de scripts, abra o accordion **"Menezcale - Auto Downscale (Foco em Nitidez Pós-Upscale)"**.
 - Itens principais:
-  - **Ativar Menezcale**: liga/desliga o fluxo pós-geração (ativo por padrão).
-  - **Incluir Upscale Automático Antes**: se marcado, aplica um upscale rápido antes do downscale usando o modelo e fator escolhidos.
-  - **Método de Downscale**: `Lanczos` (mais fiel), `FSRCNN` (se o modelo existir em `models/ESRGAN`) ou `Bicubic`.
-  - **Fator de Downscale**: razão aplicada sobre a imagem atual (0.25 volta ao original após um upscale 4x).
-  - **Usar Tamanho Original Automático**: detecta `p.width/p.height` ou metadados do PNG; ao desligar, habilita sliders para largura/altura manual.
-  - **Teste Manual**: envie uma imagem (pós-upscale) e clique em **Testar Downscale Manual** para ver o preview imediato.
+- **Ativar Menezcale**: liga/desliga o fluxo pós-geração (ativo por padrão).
+- **Incluir Upscale Automático Antes**: se marcado, aplica um upscale rápido antes do downscale usando o modelo e fator escolhidos.
+- **Método de Downscale**: `Lanczos` (mais fiel), `FSRCNN` (se o modelo existir em `models/ESRGAN`) ou `Bicubic`.
+- **Fator de Downscale**: razão aplicada sobre a imagem atual (0.25 volta ao original após um upscale 4x).
+- **Usar Tamanho Original Automático**: detecta `p.width/p.height` ou metadados do PNG; ao desligar, habilita sliders para largura/altura manual.
+- **Teste Manual**: envie uma imagem (pós-upscale) e clique em **Testar Downscale Manual** para ver o preview imediato. Se já gerou algo em txt2img, o botão **Carregar última imagem gerada** preenche automaticamente com a última saída.
 - O hook roda no `postprocess` do txt2img, iterando sobre todas as imagens em `processed.images`.
 
 ## Como funciona

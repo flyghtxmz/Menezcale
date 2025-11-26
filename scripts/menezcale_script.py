@@ -164,6 +164,7 @@ class MenezcaleScript(scripts.Script):
                 label="Imagem pós-upscale (upload)",
                 type="pil",
             )
+            load_last = gr.Button("Carregar última imagem gerada")
             manual_button = gr.Button("Testar Downscale Manual")
             manual_output = gr.Image(
                 label="Preview Downscale",
@@ -200,6 +201,12 @@ class MenezcaleScript(scripts.Script):
                     manual_height,
                 ],
                 outputs=manual_output,
+            )
+
+            load_last.click(
+                fn=self._load_last_image,
+                inputs=[],
+                outputs=manual_input,
             )
 
         return [
@@ -290,6 +297,21 @@ class MenezcaleScript(scripts.Script):
             new_images.append(final_image)
 
         processed.images = new_images
+        if new_images:
+            self._last_image = self._safe_copy_image(new_images[-1])
+
+    def _load_last_image(self) -> Optional[Image.Image]:
+        img = getattr(self, "_last_image", None)
+        if img is None:
+            print("[Menezcale] Nenhuma imagem gerada anteriormente para carregar.")
+            return None
+        try:
+            copy_img = img.copy()
+            copy_img.info = getattr(img, "info", {}).copy()
+            return copy_img
+        except Exception as err:
+            print(f"[Menezcale] Falha ao carregar última imagem: {err}")
+            return None
 
     def _log_hires_info_if_any(self, p: StableDiffusionProcessing):
         """
@@ -557,3 +579,11 @@ class MenezcaleScript(scripts.Script):
 
         # Try loading by common model name.
         return self._find_upscaler_by_name("FSRCNN_x2")
+
+    def _safe_copy_image(self, image: Image.Image) -> Image.Image:
+        try:
+            img = image.copy()
+            img.info = getattr(image, "info", {}).copy()
+            return img
+        except Exception:
+            return image
