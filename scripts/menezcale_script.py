@@ -65,12 +65,14 @@ except Exception:
 
 class MenezcaleScript(scripts.Script):
     """
-    Menezcale - Auto Downscale (focus on sharpening after external upscale).
+    Menezcale - Auto Downscale (foco em nitidez após upscale externo/Hires).
 
-    The script hooks into txt2img postprocess to optionally run an auto-upscale
-    step, then downscale back to the detected original size (or using the
-    configured factor). It also exposes a manual test utility in the UI.
+    O script detecta o tamanho original (incluindo Hires Fix) e permite
+    downscale para esse tamanho. Pode rodar automático no postprocess ou
+    manualmente pelo painel (com preview).
     """
+    _hires_available: bool = False
+    _last_image: Optional[Image.Image] = None
 
     def title(self):
         return "Menezcale"
@@ -85,35 +87,9 @@ class MenezcaleScript(scripts.Script):
             open=False,
         ):
             activate = gr.Checkbox(
-                label="Ativar Menezcale",
-                value=True,
-                info="Aplica o fluxo automático após gerar as imagens.",
-            )
-
-            include_upscale = gr.Checkbox(
-                label="Incluir Upscale Automático Antes",
+                label="Aplicar downscale automaticamente ao gerar",
                 value=False,
-                info="Se ligado, faz um upscale rápido antes do downscale.",
-            )
-
-            upscale_method = gr.Dropdown(
-                choices=[
-                    "4x-UltraSharp (Recomendado para Detalhes)",
-                    "R-ESRGAN 4x+",
-                    "None",
-                ],
-                value="4x-UltraSharp (Recomendado para Detalhes)",
-                label="Método de Upscale",
-                visible=False,
-            )
-
-            upscale_factor = gr.Slider(
-                minimum=2,
-                maximum=8,
-                step=1,
-                value=4,
-                label="Fator de Upscale",
-                visible=False,
+                info="Se ligado, aplica o downscale ao final da geração. Caso contrário, use o botão manual.",
             )
 
             down_method = gr.Dropdown(
@@ -126,10 +102,16 @@ class MenezcaleScript(scripts.Script):
                 label="Método de Downscale",
             )
 
+            use_auto_original = gr.Checkbox(
+                label="Tamanho original",
+                value=True,
+                info="Quando ligado, volta para o tamanho original detectado (p.width/p.height, Hires Fix ou metadados).",
+            )
+
             use_manual_down = gr.Checkbox(
                 label="Usar fator manual de downscale (opcional)",
                 value=False,
-                info="Desligado: usa o tamanho original detectado (p.width/p.height ou Hires). Ligado: aplica fator manual.",
+                info="Marque para habilitar o fator manual; caso contrário usa o tamanho original.",
             )
 
             down_factor = gr.Slider(
@@ -139,12 +121,6 @@ class MenezcaleScript(scripts.Script):
                 value=0.25,
                 label="Fator de Downscale (manual)",
                 visible=False,
-            )
-
-            use_auto_original = gr.Checkbox(
-                label="Usar Tamanho Original Automático",
-                value=True,
-                info="Detecta p.width/p.height ou metadados SD; se desligado, use tamanho manual.",
             )
 
             manual_width = gr.Slider(
@@ -170,24 +146,17 @@ class MenezcaleScript(scripts.Script):
             manual_input = gr.Image(
                 label="Imagem pós-upscale (upload)",
                 type="pil",
+                height=256,
             )
             load_last = gr.Button("Carregar última imagem gerada")
-            manual_button = gr.Button("Testar Downscale Manual")
+            manual_button = gr.Button("Aplicar Downscale")
             manual_output = gr.Image(
                 label="Preview Downscale",
                 type="pil",
+                height=256,
             )
 
             # UI interatividade.
-            include_upscale.change(
-                fn=lambda enabled: (
-                    gr.update(visible=enabled),
-                    gr.update(visible=enabled),
-                ),
-                inputs=include_upscale,
-                outputs=[upscale_method, upscale_factor],
-            )
-
             use_auto_original.change(
                 fn=lambda enabled: (
                     gr.update(visible=not enabled),
@@ -225,9 +194,6 @@ class MenezcaleScript(scripts.Script):
 
         return [
             activate,
-            include_upscale,
-            upscale_method,
-            upscale_factor,
             down_method,
             down_factor,
             use_manual_down,
@@ -248,14 +214,14 @@ class MenezcaleScript(scripts.Script):
     ) -> Optional[Image.Image]:
         if image is None:
             return None
+        if not self._is_hires_allowed(image):
+            print("[Menezcale] Hires Fix não detectado. Downscale bloqueado.")
+            return None
 
         print("[Menezcale] Teste manual iniciado")
         processed_image = self._run_pipeline(
             image=image,
             p=None,
-            include_upscale=False,
-            upscale_method="None",
-            upscale_factor=1,
             down_method=down_method,
             down_factor=down_factor,
             use_manual_down=use_manual_down,
@@ -271,9 +237,6 @@ class MenezcaleScript(scripts.Script):
         p: StableDiffusionProcessing,
         processed: Processed,
         activate: bool,
-        include_upscale: bool,
-        upscale_method: str,
-        upscale_factor: float,
         down_method: str,
         down_factor: float,
         use_manual_down: bool,
@@ -282,19 +245,34 @@ class MenezcaleScript(scripts.Script):
         manual_height: int,
     ):
         self._log_hires_info_if_any(p)
-
-        if not activate:
-            print("[Menezcale] Desativado - nada a fazer.")
-            return
+        hires_enabled = bool(getattr(p, "enable_hr", False))
+        self._hires_available = hires_enabled
 
         if not processed or not processed.images:
             print("[Menezcale] Nenhuma imagem processada encontrada.")
             return
 
+        # Sempre guarda a última imagem gerada para o botão de carregamento.
+        self._last_image = self._safe_copy_image(processed.images[-1])
+        self._attach_base_metadata(
+            getattr(self._last_image, "info", {}),
+            original_size=None,
+            p=p,
+        )
+
+        if not hires_enabled:
+            print("[Menezcale] Hires Fix não está ativo; controles bloqueados até habilitar Hires.")
+            return
+
+        if not activate:
+            print("[Menezcale] Downscale automático desativado. Use o botão 'Aplicar Downscale'.")
+            return
+
         print(
-            f"[Menezcale] Postprocess iniciado. Include upscale: {include_upscale} | "
-            f"Upscaler: {upscale_method} x{upscale_factor} | Downscale: {down_method} "
-            f"fator {down_factor} | Auto size: {use_auto_original}"
+            f"[Menezcale] Postprocess iniciado (automático). "
+            f"Downscale: {down_method} "
+            f"fator {down_factor if use_manual_down else 'auto original'} "
+            f"| Auto size: {use_auto_original}"
         )
 
         new_images = []
@@ -303,9 +281,6 @@ class MenezcaleScript(scripts.Script):
             final_image = self._run_pipeline(
                 image=image,
                 p=p,
-                include_upscale=include_upscale,
-                upscale_method=upscale_method,
-                upscale_factor=upscale_factor,
                 down_method=down_method,
                 down_factor=down_factor,
                 use_manual_down=use_manual_down,
@@ -323,6 +298,9 @@ class MenezcaleScript(scripts.Script):
         img = getattr(self, "_last_image", None)
         if img is None:
             print("[Menezcale] Nenhuma imagem gerada anteriormente para carregar.")
+            return None, None
+        if not self._is_hires_allowed(img):
+            print("[Menezcale] Hires Fix não detectado na última imagem; controles bloqueados.")
             return None, None
         try:
             copy_img = img.copy()
@@ -367,9 +345,6 @@ class MenezcaleScript(scripts.Script):
         self,
         image: Image.Image,
         p: Optional[StableDiffusionProcessing],
-        include_upscale: bool,
-        upscale_method: str,
-        upscale_factor: float,
         down_method: str,
         down_factor: float,
         use_manual_down: bool,
@@ -379,9 +354,6 @@ class MenezcaleScript(scripts.Script):
     ) -> Image.Image:
         original_info = getattr(image, "info", {}) or {}
 
-        if include_upscale and upscale_method != "None":
-            image = self._apply_upscale(image, upscale_method, upscale_factor, original_info)
-
         original_size = self._detect_original_size(
             p=p,
             image=image,
@@ -389,6 +361,8 @@ class MenezcaleScript(scripts.Script):
             manual_width=manual_width,
             manual_height=manual_height,
         )
+
+        self._attach_base_metadata(original_info, original_size, p)
 
         target_size = self._compute_target_size(
             image=image,
@@ -402,8 +376,8 @@ class MenezcaleScript(scripts.Script):
 
         print(
             f"Menezcale: Downscale para {target_size[0]}x{target_size[1]} aplicado "
-            f"com {down_method} (upscale opcional: "
-            f"{upscale_method if include_upscale else 'desativado'})"
+            f"com {down_method} "
+            f"(alvo {'original' if original_size else ('fator manual' if use_manual_down else 'tamanho atual')})"
         )
 
         # Reattach metadata for downstream consumers.
@@ -424,12 +398,22 @@ class MenezcaleScript(scripts.Script):
                 return int(manual_width), int(manual_height)
             return None
 
+        info = getattr(image, "info", {}) or {}
+        base_w = info.get("menezcale_base_width")
+        base_h = info.get("menezcale_base_height")
+        if base_w and base_h:
+            try:
+                bw, bh = int(base_w), int(base_h)
+                print(f"[Menezcale] Tamanho original de metadata Menezcale: {bw}x{bh}")
+                return bw, bh
+            except Exception:
+                pass
+
         if p and getattr(p, "width", None) and getattr(p, "height", None):
             if p.width > 0 and p.height > 0:
                 print(f"[Menezcale] Tamanho original de p: {p.width}x{p.height}")
                 return int(p.width), int(p.height)
 
-        info = getattr(image, "info", {}) or {}
         params_text = info.get("parameters") or info.get("Parameters")
 
         if params_text:
@@ -437,6 +421,12 @@ class MenezcaleScript(scripts.Script):
             if match:
                 width, height = int(match.group(1)), int(match.group(2))
                 print(f"[Menezcale] Tamanho original de metadados regex: {width}x{height}")
+                return width, height
+
+            size_match = re.search(r"Size:\s*(\d+)\s*[xX]\s*(\d+)", params_text)
+            if size_match:
+                width, height = int(size_match.group(1)), int(size_match.group(2))
+                print(f"[Menezcale] Tamanho original de metadados Size: {width}x{height}")
                 return width, height
 
             if parse_generation_parameters:
@@ -616,3 +606,35 @@ class MenezcaleScript(scripts.Script):
             return img
         except Exception:
             return image
+
+    def _attach_base_metadata(
+        self,
+        metadata: dict,
+        original_size: Optional[Tuple[int, int]],
+        p: Optional[StableDiffusionProcessing],
+    ):
+        try:
+            if original_size:
+                metadata["menezcale_base_width"] = int(original_size[0])
+                metadata["menezcale_base_height"] = int(original_size[1])
+                metadata["menezcale_hires_enabled"] = True
+                return
+            if p and getattr(p, "width", None) and getattr(p, "height", None):
+                metadata["menezcale_base_width"] = int(p.width)
+                metadata["menezcale_base_height"] = int(p.height)
+                metadata["menezcale_hires_enabled"] = bool(getattr(p, "enable_hr", False))
+        except Exception:
+            pass
+
+    def _is_hires_allowed(self, image: Optional[Image.Image]) -> bool:
+        if getattr(self, "_hires_available", False):
+            return True
+        if image is None:
+            return False
+        info = getattr(image, "info", {}) or {}
+        if info.get("menezcale_hires_enabled"):
+            return True
+        params_text = info.get("parameters") or info.get("Parameters")
+        if params_text and re.search(r"hires", params_text, re.IGNORECASE):
+            return True
+        return False
