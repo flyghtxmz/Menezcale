@@ -6,8 +6,14 @@ from typing import Optional, Tuple
 import gradio as gr
 from PIL import Image
 
-from modules import scripts, sd_upscalers, shared
+import modules.scripts as scripts
+import modules.shared as shared
 from modules.processing import Processed, StableDiffusionProcessing
+
+try:
+    import modules.sd_upscalers as sd_upscalers
+except Exception:
+    sd_upscalers = None
 
 
 def _load_sd_parsers():
@@ -480,6 +486,8 @@ class MenezcaleScript(scripts.Script):
         return image
 
     def _find_upscaler_by_name(self, name: str):
+        if not sd_upscalers:
+            return None
         try:
             if hasattr(sd_upscalers, "get_upscalers"):
                 for upscaler in sd_upscalers.get_upscalers():
@@ -494,6 +502,8 @@ class MenezcaleScript(scripts.Script):
         return None
 
     def _find_fsrcnn_upscaler(self):
+        if not sd_upscalers:
+            return None
         try:
             if hasattr(sd_upscalers, "get_upscalers"):
                 for upscaler in sd_upscalers.get_upscalers():
