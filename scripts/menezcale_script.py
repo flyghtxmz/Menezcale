@@ -237,8 +237,6 @@ class MenezcaleScript(scripts.Script):
         manual_height: int,
     ):
         self._log_hires_info_if_any(p)
-        hires_enabled = bool(getattr(p, "enable_hr", False))
-        self._hires_available = hires_enabled
 
         if not processed or not processed.images:
             print("[Menezcale] Nenhuma imagem processada encontrada.")
@@ -252,8 +250,9 @@ class MenezcaleScript(scripts.Script):
             p=p,
         )
 
-        if not hires_enabled:
-            print("[Menezcale] Hires Fix não está ativo; controles bloqueados até habilitar Hires.")
+        self._hires_available = self._is_hires_allowed(self._last_image)
+        if not self._hires_available:
+            print("[Menezcale] Imagem sem Hires Fix detectado; controles bloqueados.")
             return
         # Automático desativado: apenas registra a última imagem e sai.
         print("[Menezcale] Downscale automático desativado. Use o botão 'Aplicar Downscale'.")
