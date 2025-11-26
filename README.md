@@ -4,8 +4,8 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
 
 ## Instalação
 
-1. Coloque esta pasta em `extensions/menezcale/`.
-2. (Opcional) Rode `python install.py` dentro da pasta para instalar `sd-parsers` (usado para ler metadados do PNG).
+1. Coloque esta pasta em `extensions/Menezcale/` no diretório do Forge/SD-WebUI.
+2. Dependência: `sd-parsers` (listada em `requirements.txt`). O script tenta instalar automaticamente via pip; se preferir, instale manualmente com `pip install -r requirements.txt`. Se a instalação falhar, o regex de fallback continua funcionando.
 3. Baixe modelos que desejar usar, por exemplo `FSRCNN_x2.pth`, em `models/ESRGAN/`.
 4. Recarregue a UI do Forge / SD-WebUI.
 
@@ -39,6 +39,6 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
 ## Pastas adicionais
 
 - `scripts/menezcale_script.py`: lógica da extensão e UI Gradio.
-- `install.py`: instala `sd-parsers` (opcional).
+- `install.py`: redundante (instala `sd-parsers` manualmente se desejar), já que o script tenta resolver automaticamente.
 
 Logs de debug com prefixo `[Menezcale]` são emitidos no console do WebUI para facilitar verificação de tamanho/método aplicado.

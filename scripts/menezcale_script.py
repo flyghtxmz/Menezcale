@@ -1,4 +1,6 @@
 import re
+import subprocess
+import sys
 from typing import Optional, Tuple
 
 import gradio as gr
@@ -7,11 +9,33 @@ from PIL import Image
 from modules import scripts, sd_upscalers, shared
 from modules.processing import Processed, StableDiffusionProcessing
 
-try:
-    # Optional dependency requested by spec for parsing metadata.
-    from sd_parsers import parse_generation_parameters
-except Exception:
-    parse_generation_parameters = None
+
+def _load_sd_parsers():
+    """
+    Try to import sd_parsers; if missing, attempt a lightweight pip install.
+    Falls back to None if not available (regex still works).
+    """
+    try:
+        from sd_parsers import parse_generation_parameters  # type: ignore
+
+        return parse_generation_parameters
+    except Exception:
+        pass
+
+    try:
+        print("[Menezcale] Instalando dependência leve sd-parsers...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "sd-parsers"])
+        from sd_parsers import parse_generation_parameters  # type: ignore
+
+        print("[Menezcale] sd-parsers instalado com sucesso.")
+        return parse_generation_parameters
+    except Exception as err:
+        print(f"[Menezcale] sd-parsers indisponível ({err}). Usando regex fallback.")
+        return None
+
+
+# Optional dependency requested by spec for parsing metadata.
+parse_generation_parameters = _load_sd_parsers()
 
 try:
     from modules import face_restoration
