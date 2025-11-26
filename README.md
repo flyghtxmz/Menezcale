@@ -34,6 +34,7 @@ Extensão para o painel **txt2img** do Forge (fork do Stable Diffusion WebUI) fo
 ## Pastas adicionais
 
 - `scripts/menezcale_script.py`: lógica da extensão e UI Gradio.
+- `scripts/menezcale_core.py`: helpers de detecção de tamanho, downscale, metadados e GFPGAN.
 - `install.py`: redundante (instala `sd-parsers` manualmente se desejar), já que o script tenta resolver automaticamente.
 - `requirements.txt`: lista `sd-parsers`.
 
